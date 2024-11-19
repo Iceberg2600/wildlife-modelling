@@ -126,10 +126,70 @@ MCMCsummary(out,
 
 # 4.图像--拟合的种群轨迹，包括不确定性，并添加观测数据 
 # --------------------------------------------------------
+wildebeest_traj <- data.frame(Year = wildebeest$year,
+                          Mean = out$mean$N,
+                          Lower = out$q2.5$N,
+                          Upper = out$q97.5$N,
+                          Obs = wildebeest$Nhat)
 
+ggplot(data = wildebeest_traj) + 
+  geom_ribbon(aes(x=Year, y=Mean, ymin=Lower, ymax=Upper),
+              fill="grey", alpha = 0.25) +
+  geom_line(aes(x=Year, y=Mean), linewidth=1, color="blue") + 
+  geom_line(aes(x=Year, y=Obs)) +
+  geom_point(aes(x=Year, y=Obs), size=1.2) +
+  theme_bw()
 
+# 5.预测
+# --------------------------------------------------------
+# 计算平均降雨量
+mean_rain <- mean(rainfall, na.rm = TRUE)
+# 计算平均观测误差
+mean_se <- mean(se_obs, na.rm = TRUE)
+# 获取最后观测年份的捕获量作为未来捕获水平
+last_catch <- tail(catch, 1)
 
+# number of projection years
+nproj <- 5 # data goes to 1989, we want to project to 1994
 
+# new data
+process_data_project <- list(
+  rain = c(rainfall,rep(mean_rain,5)),
+  catch = c(catch,rep(last_catch,5)),
+  n = length(c(years,1990:1994))
+)
+
+observation_data_project <- list(
+  y = c(N_obs[obs_years],rep(NA, nproj)),        
+  se_y = c(se_obs[obs_years],rep(mean_se, nproj)),
+  n_obs = length(c(obs_years,31:35)),  
+  obs_years = c(obs_years,31:35)
+)
+
+wildebeest_project <- c(process_data_project, observation_data_project, list(N_init = N_init))
+
+wildebeestproj <- jags(data = wildebeest_project, #<- CHANGE
+                   inits = inits,
+                   parameters.to.save = parms,
+                   model.file = "wildebeestSSM.txt",
+                   n.chains = nc,
+                   n.iter = ni,
+                   n.burnin = nb,
+                   n.thin = nt)
+
+wildebeestproj_traj <- data.frame(Year = c(years,1990:1994),
+                              Mean = wildebeestproj$mean$N,
+                              Lower = wildebeestproj$q2.5$N,
+                              Upper = wildebeestproj$q97.5$N,
+                              Obs = c(wildebeest$Nhat,rep(NA, nproj)))
+
+ggplot(data = wildebeestproj_traj) + 
+  geom_ribbon(aes(x=Year, y=Mean, ymin=Lower, ymax=Upper),
+              fill="grey", alpha = 0.25) +
+  geom_line(aes(x=Year, y=Mean), linewidth=1, color="blue") + 
+  geom_line(aes(x=Year, y=Obs)) +
+  geom_point(aes(x=Year, y=Obs), size=1.2) +
+  theme_bw()
 
 
 
